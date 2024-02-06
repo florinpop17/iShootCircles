@@ -14,10 +14,11 @@ ctx.scale(devicePixelRatio, devicePixelRatio);
 
 // Player stuff
 class Player {
-    constructor(x, y, size) {
+    constructor(x, y, size, isEnemy = false) {
         this.pos = { x: x, y: y };
         this.size = size;
         this.speed = PLAYER_SPEED;
+        this.isEnemy = isEnemy;
     }
 
     move(dirX, dirY) {
@@ -26,7 +27,7 @@ class Player {
     }
 
     draw() {
-        ctx.fillStyle = "white";
+        ctx.fillStyle = this.isEnemy ? "blue" : "white";
         drawCircle(this.pos.x, this.pos.y, this.size);
     }
 }
@@ -41,21 +42,22 @@ class Bullet {
         this.dx = Math.cos(angle) * this.speed;
         this.dy = Math.sin(angle) * this.speed;
         this.lifespan = 0;
+        this.isExpired = false;
     }
 
     update() {
         this.pos.x += this.dx;
         this.pos.y += this.dy;
         this.lifespan++;
+
+        if (this.lifespan > BULLET_LIFESPAN) {
+            this.isExpired = true;
+        }
     }
 
     draw() {
         ctx.fillStyle = this.getBulletColor();
         drawCircle(this.pos.x, this.pos.y, this.size);
-    }
-
-    isExpired() {
-        return this.lifespan > BULLET_LIFESPAN;
     }
 
     getBulletColor() {
@@ -83,7 +85,12 @@ const player = new Player(
     window.innerHeight / 2,
     PLAYER_SIZE
 );
+let enemies = [];
 let bullets = [];
+
+for (let i = 0; i < 10; i++) {
+    createEnemy();
+}
 
 gameLoop();
 
@@ -95,13 +102,24 @@ function gameLoop() {
 }
 
 function updateGame() {
-    if (keys["w"]) player.move(0, -player.speed); // Move up
-    if (keys["s"]) player.move(0, player.speed); // Move down
-    if (keys["a"]) player.move(-player.speed, 0); // Move left
-    if (keys["d"]) player.move(player.speed, 0); // Move right
+    if (keys["w"]) moveWorld(0, -player.speed);
+    if (keys["s"]) moveWorld(0, player.speed);
+    if (keys["a"]) moveWorld(-player.speed, 0);
+    if (keys["d"]) moveWorld(player.speed, 0);
 
-    bullets.forEach((bullet) => bullet.update());
-    bullets = bullets.filter((bullet) => !bullet.isExpired());
+    bullets.forEach((bullet) => {
+        bullet.update();
+        enemies.forEach((enemy, enemyIndex) => {
+            if (isColliding(bullet, enemy)) {
+                enemies.splice(enemyIndex, 1);
+                bullet.isExpired = true;
+
+                createEnemy();
+            }
+        });
+    });
+
+    bullets = bullets.filter((bullet) => !bullet.isExpired);
 }
 
 function drawGame() {
@@ -109,6 +127,39 @@ function drawGame() {
 
     player.draw();
     bullets.forEach((bullet) => bullet.draw());
+    enemies.forEach((enemy) => enemy.draw());
+}
+
+function createEnemy() {
+    const enemy = new Player(
+        Math.random() * window.innerWidth,
+        Math.random() * window.innerHeight,
+        PLAYER_SIZE / 2,
+        true
+    );
+
+    enemies.push(enemy);
+}
+
+// Game logistics
+function moveWorld(dx, dy) {
+    bullets.forEach((bullet) => {
+        bullet.pos.x -= dx;
+        bullet.pos.y -= dy;
+    });
+
+    enemies.forEach((enemy) => {
+        enemy.pos.x -= dx;
+        enemy.pos.y -= dy;
+    });
+}
+
+function isColliding(circle1, circle2) {
+    var dx = circle1.pos.x - circle2.pos.x;
+    var dy = circle1.pos.y - circle2.pos.y;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance < circle1.size + circle2.size;
 }
 
 // Drawing stuff
